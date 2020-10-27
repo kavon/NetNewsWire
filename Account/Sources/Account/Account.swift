@@ -681,28 +681,28 @@ public final class Account: DisplayNameProvider, UnreadCountProvider, Container,
 		}
 	}
 
-	public func fetchArticlesAsync(_ fetchType: FetchType, _ completion: @escaping ArticleSetResultBlock) {
+	public func fetchArticlesAsync(_ fetchType: FetchType) async -> ArticleSetResult {
 		switch fetchType {
 		case .starred:
-			fetchStarredArticlesAsync(completion)
+			return await fetchStarredArticlesAsync()
 		case .unread:
-			fetchUnreadArticlesAsync(completion)
+			return await fetchUnreadArticlesAsync()
 		case .today:
-			fetchTodayArticlesAsync(completion)
+			return await fetchTodayArticlesAsync()
 		case .folder(let folder, let readFilter):
 			if readFilter {
-				return fetchUnreadArticlesAsync(folder: folder, completion)
+				return await fetchUnreadArticlesAsync(folder: folder)
 			} else {
-				return fetchArticlesAsync(folder: folder, completion)
+				return await fetchArticlesAsync(folder: folder)
 			}
 		case .webFeed(let webFeed):
-			fetchArticlesAsync(webFeed: webFeed, completion)
+			return await fetchArticlesAsync(webFeed: webFeed)
 		case .articleIDs(let articleIDs):
-			fetchArticlesAsync(articleIDs: articleIDs, completion)
+			return await fetchArticlesAsync(articleIDs: articleIDs)
 		case .search(let searchString):
-			fetchArticlesMatchingAsync(searchString, completion)
+			return await fetchArticlesMatchingAsync(searchString)
 		case .searchWithArticleIDs(let searchString, let articleIDs):
-			return fetchArticlesMatchingWithArticleIDsAsync(searchString, articleIDs, completion)
+			return await fetchArticlesMatchingWithArticleIDsAsync(searchString, articleIDs)
 		}
 	}
 
@@ -1034,40 +1034,40 @@ private extension Account {
 		return try database.fetchStarredArticles(flattenedWebFeeds().webFeedIDs())
 	}
 
-	func fetchStarredArticlesAsync(_ completion: @escaping ArticleSetResultBlock) {
-		database.fetchedStarredArticlesAsync(flattenedWebFeeds().webFeedIDs(), completion)
+	func fetchStarredArticlesAsync() async -> ArticleSetResult {
+		return await database.fetchedStarredArticlesAsync(flattenedWebFeeds().webFeedIDs())
 	}
 
 	func fetchUnreadArticles() throws -> Set<Article> {
 		return try fetchUnreadArticles(forContainer: self)
 	}
 
-	func fetchUnreadArticlesAsync(_ completion: @escaping ArticleSetResultBlock) {
-		fetchUnreadArticlesAsync(forContainer: self, completion)
+	func fetchUnreadArticlesAsync() async -> ArticleSetResult {
+		return await fetchUnreadArticlesAsync(forContainer: self)
 	}
 
 	func fetchTodayArticles() throws -> Set<Article> {
 		return try database.fetchTodayArticles(flattenedWebFeeds().webFeedIDs())
 	}
 
-	func fetchTodayArticlesAsync(_ completion: @escaping ArticleSetResultBlock) {
-		database.fetchTodayArticlesAsync(flattenedWebFeeds().webFeedIDs(), completion)
+	func fetchTodayArticlesAsync() async -> ArticleSetResult {
+		return await database.fetchTodayArticlesAsync(flattenedWebFeeds().webFeedIDs())
 	}
 
 	func fetchArticles(folder: Folder) throws -> Set<Article> {
 		return try fetchArticles(forContainer: folder)
 	}
 
-	func fetchArticlesAsync(folder: Folder, _ completion: @escaping ArticleSetResultBlock) {
-		fetchArticlesAsync(forContainer: folder, completion)
+	func fetchArticlesAsync(folder: Folder) async -> ArticleSetResult {
+		return await fetchArticlesAsync(forContainer: folder)
 	}
 
 	func fetchUnreadArticles(folder: Folder) throws -> Set<Article> {
 		return try fetchUnreadArticles(forContainer: folder)
 	}
 
-	func fetchUnreadArticlesAsync(folder: Folder, _ completion: @escaping ArticleSetResultBlock) {
-		fetchUnreadArticlesAsync(forContainer: folder, completion)
+	func fetchUnreadArticlesAsync(folder: Folder) async -> ArticleSetResult {
+		return await fetchUnreadArticlesAsync(forContainer: folder)
 	}
 
 	func fetchArticles(webFeed: WebFeed) throws -> Set<Article> {
@@ -1076,15 +1076,13 @@ private extension Account {
 		return articles
 	}
 
-	func fetchArticlesAsync(webFeed: WebFeed, _ completion: @escaping ArticleSetResultBlock) {
-		database.fetchArticlesAsync(webFeed.webFeedID) { [weak self] articleSetResult in
-			switch articleSetResult {
-			case .success(let articles):
-				self?.validateUnreadCount(webFeed, articles)
-				completion(.success(articles))
-			case .failure(let databaseError):
-				completion(.failure(databaseError))
-			}
+	func fetchArticlesAsync(webFeed: WebFeed) async -> ArticleSetResult {
+		switch await database.fetchArticlesAsync(webFeed.webFeedID) {
+		case .success(let articles):
+			self?.validateUnreadCount(webFeed, articles)
+			return .success(articles)
+		case .failure(let databaseError):
+			return .failure(databaseError)
 		}
 	}
 
@@ -1096,20 +1094,20 @@ private extension Account {
 		return try database.fetchArticlesMatchingWithArticleIDs(searchString, articleIDs)
 	}
 	
-	func fetchArticlesMatchingAsync(_ searchString: String, _ completion: @escaping ArticleSetResultBlock) {
-		database.fetchArticlesMatchingAsync(searchString, flattenedWebFeeds().webFeedIDs(), completion)
+	func fetchArticlesMatchingAsync(_ searchString: String) async -> ArticleSetResult {
+		return await database.fetchArticlesMatchingAsync(searchString, flattenedWebFeeds().webFeedIDs())
 	}
 
-	func fetchArticlesMatchingWithArticleIDsAsync(_ searchString: String, _ articleIDs: Set<String>, _ completion: @escaping ArticleSetResultBlock) {
-		database.fetchArticlesMatchingWithArticleIDsAsync(searchString, articleIDs, completion)
+	func fetchArticlesMatchingWithArticleIDsAsync(_ searchString: String, _ articleIDs: Set<String>) async -> ArticleSetResult {
+		return await database.fetchArticlesMatchingWithArticleIDsAsync(searchString, articleIDs)
 	}
 
 	func fetchArticles(articleIDs: Set<String>) throws -> Set<Article> {
 		return try database.fetchArticles(articleIDs: articleIDs)
 	}
 
-	func fetchArticlesAsync(articleIDs: Set<String>, _ completion: @escaping ArticleSetResultBlock) {
-		return database.fetchArticlesAsync(articleIDs: articleIDs, completion)
+	func fetchArticlesAsync(articleIDs: Set<String>) async -> ArticleSetResult {
+		return await database.fetchArticlesAsync(articleIDs: articleIDs, completion)
 	}
 
 	func fetchUnreadArticles(webFeed: WebFeed) throws -> Set<Article> {
@@ -1118,11 +1116,10 @@ private extension Account {
 		return articles
 	}
 
-	func fetchUnreadArticlesAsync(for webFeed: WebFeed, completion: @escaping (Set<Article>) -> Void) {
-		//		database.fetchUnreadArticlesAsync(for: Set([feed.feedID])) { [weak self] (articles) in
-		//			self?.validateUnreadCount(feed, articles)
-		//			callback(articles)
-		//		}
+	func fetchUnreadArticlesAsync(for webFeed: WebFeed) async -> Set<Article> {
+		//	let articles = await database.fetchUnreadArticlesAsync(for: Set([feed.feedID]))
+		//	self?.validateUnreadCount(feed, articles)
+		//	return articles
 	}
 
 
@@ -1133,16 +1130,14 @@ private extension Account {
 		return articles
 	}
 
-	func fetchArticlesAsync(forContainer container: Container, _ completion: @escaping ArticleSetResultBlock) {
+	func fetchArticlesAsync(forContainer container: Container) async -> ArticleSetResult {
 		let webFeeds = container.flattenedWebFeeds()
-		database.fetchArticlesAsync(webFeeds.webFeedIDs()) { [weak self] (articleSetResult) in
-			switch articleSetResult {
-			case .success(let articles):
-				self?.validateUnreadCountsAfterFetchingUnreadArticles(webFeeds, articles)
-				completion(.success(articles))
-			case .failure(let databaseError):
-				completion(.failure(databaseError))
-			}
+		switch await database.fetchArticlesAsync(webFeeds.webFeedIDs()) {
+		case .success(let articles):
+			self?.validateUnreadCountsAfterFetchingUnreadArticles(webFeeds, articles)
+			return .success(articles)
+		case .failure(let databaseError):
+			return .failure(databaseError)
 		}
 	}
 
@@ -1153,16 +1148,14 @@ private extension Account {
 		return articles
 	}
 
-	func fetchUnreadArticlesAsync(forContainer container: Container, _ completion: @escaping ArticleSetResultBlock) {
+	func fetchUnreadArticlesAsync(forContainer container: Container) async -> ArticleSetResult {
 		let webFeeds = container.flattenedWebFeeds()
-		database.fetchUnreadArticlesAsync(webFeeds.webFeedIDs()) { [weak self] (articleSetResult) in
-			switch articleSetResult {
-			case .success(let articles):
-				self?.validateUnreadCountsAfterFetchingUnreadArticles(webFeeds, articles)
-				completion(.success(articles))
-			case .failure(let databaseError):
-				completion(.failure(databaseError))
-			}
+		switch await database.fetchUnreadArticlesAsync(webFeeds.webFeedIDs()) {
+		case .success(let articles):
+			self?.validateUnreadCountsAfterFetchingUnreadArticles(webFeeds, articles)
+			return .success(articles)
+		case .failure(let databaseError):
+			return .failure(databaseError)
 		}
 	}
 
