@@ -343,19 +343,20 @@ public final class AccountManager: UnreadCountProvider {
 		return articles
 	}
 
-	public func fetchArticlesAsync(_ fetchType: FetchType, _ completion: @escaping ArticleSetResultBlock) {
-		precondition(Thread.isMainThread)
+	public func fetchArticlesAsync(_ fetchType: FetchType) async -> ArticleSetResult {
+		precondition(Thread.isMainThread) // TODO
 		
 		var allFetchedArticles = Set<Article>()
 		let numberOfAccounts = activeAccounts.count
 		var accountsReporting = 0
 		
 		guard numberOfAccounts > 0 else {
-			completion(.success(allFetchedArticles))
-			return
+			return .success(allFetchedArticles)
 		}
 
+		// TODO: refactor this loop to use detached tasks and/or actors.
 		for account in activeAccounts {
+			// TODO: type error here right now:
 			account.fetchArticlesAsync(fetchType) { (articleSetResult) in
 				accountsReporting += 1
 
