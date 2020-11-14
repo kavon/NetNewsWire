@@ -124,35 +124,35 @@ public final class ArticlesDatabase {
 
 	// MARK: - Fetching Articles Async
 
-	public func fetchArticlesAsync(_ webFeedID: String) async -> ArticleSetResult {
+	public func fetchArticlesAsync(_ webFeedID: String) async throws -> Set<Article> {
 		return await articlesTable.fetchArticlesAsync(webFeedID)
 	}
 
-	public func fetchArticlesAsync(_ webFeedIDs: Set<String>) async -> ArticleSetResult {
+	public func fetchArticlesAsync(_ webFeedIDs: Set<String>) async throws -> Set<Article> {
 		return await articlesTable.fetchArticlesAsync(webFeedIDs)
 	}
 
-	public func fetchArticlesAsync(articleIDs: Set<String>) async -> ArticleSetResult {
+	public func fetchArticlesAsync(articleIDs: Set<String>) async throws -> Set<Article> {
 		return await articlesTable.fetchArticlesAsync(articleIDs: articleIDs)
 	}
 
-	public func fetchUnreadArticlesAsync(_ webFeedIDs: Set<String>) async -> ArticleSetResult {
+	public func fetchUnreadArticlesAsync(_ webFeedIDs: Set<String>) async throws -> Set<Article> {
 		return await articlesTable.fetchUnreadArticlesAsync(webFeedIDs)
 	}
 
-	public func fetchTodayArticlesAsync(_ webFeedIDs: Set<String>) async -> ArticleSetResult {
+	public func fetchTodayArticlesAsync(_ webFeedIDs: Set<String>) async throws -> Set<Article> {
 		return await articlesTable.fetchArticlesSinceAsync(webFeedIDs, todayCutoffDate())
 	}
 
-	public func fetchedStarredArticlesAsync(_ webFeedIDs: Set<String>) async -> ArticleSetResult {
+	public func fetchedStarredArticlesAsync(_ webFeedIDs: Set<String>) async throws -> Set<Article> {
 		return await articlesTable.fetchStarredArticlesAsync(webFeedIDs)
 	}
 
-	public func fetchArticlesMatchingAsync(_ searchString: String, _ webFeedIDs: Set<String>) async -> ArticleSetResult {
+	public func fetchArticlesMatchingAsync(_ searchString: String, _ webFeedIDs: Set<String>) async throws -> Set<Article> {
 		return await articlesTable.fetchArticlesMatchingAsync(searchString, webFeedIDs)
 	}
 
-	public func fetchArticlesMatchingWithArticleIDsAsync(_ searchString: String, _ articleIDs: Set<String>) async -> ArticleSetResult {
+	public func fetchArticlesMatchingWithArticleIDsAsync(_ searchString: String, _ articleIDs: Set<String>) async throws -> Set<Article> {
 		return await articlesTable.fetchArticlesMatchingWithArticleIDsAsync(searchString, articleIDs)
 	}
 

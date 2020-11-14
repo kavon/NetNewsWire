@@ -51,7 +51,7 @@ final class ArticlesTable: DatabaseTable {
 		return try fetchArticles{ self.fetchArticlesForFeedID(webFeedID, $0) }
 	}
 
-	func fetchArticlesAsync(_ webFeedID: String) async -> ArticleSetResult {
+	func fetchArticlesAsync(_ webFeedID: String) async throws -> Set<Article> {
 		return await fetchArticlesAsync { self.fetchArticlesForFeedID(webFeedID, $0) }
 	}
 
@@ -59,7 +59,7 @@ final class ArticlesTable: DatabaseTable {
 		return try fetchArticles{ self.fetchArticles(webFeedIDs, $0) }
 	}
 
-	func fetchArticlesAsync(_ webFeedIDs: Set<String>) async -> ArticleSetResult {
+	func fetchArticlesAsync(_ webFeedIDs: Set<String>) async throws -> Set<Article> {
 		return await fetchArticlesAsync { self.fetchArticles(webFeedIDs, $0) }
 	}
 
@@ -69,7 +69,7 @@ final class ArticlesTable: DatabaseTable {
 		return try fetchArticles{ self.fetchArticles(articleIDs: articleIDs, $0) }
 	}
 
-	func fetchArticlesAsync(articleIDs: Set<String>) async -> ArticleSetResult {
+	func fetchArticlesAsync(articleIDs: Set<String>) async throws -> Set<Article> {
 		return await fetchArticlesAsync { self.fetchArticles(articleIDs: articleIDs, $0) }
 	}
 
@@ -79,7 +79,7 @@ final class ArticlesTable: DatabaseTable {
 		return try fetchArticles{ self.fetchUnreadArticles(webFeedIDs, $0) }
 	}
 
-	func fetchUnreadArticlesAsync(_ webFeedIDs: Set<String>) async -> ArticleSetResult {
+	func fetchUnreadArticlesAsync(_ webFeedIDs: Set<String>) async throws -> Set<Article> {
 		return await fetchArticlesAsync { self.fetchUnreadArticles(webFeedIDs, $0) }
 	}
 
@@ -89,7 +89,7 @@ final class ArticlesTable: DatabaseTable {
 		return try fetchArticles{ self.fetchArticlesSince(webFeedIDs, cutoffDate, $0) }
 	}
 
-	func fetchArticlesSinceAsync(_ webFeedIDs: Set<String>, _ cutoffDate: Date) async -> ArticleSetResult {
+	func fetchArticlesSinceAsync(_ webFeedIDs: Set<String>, _ cutoffDate: Date) async throws -> Set<Article> {
 		return await fetchArticlesAsync { self.fetchArticlesSince(webFeedIDs, cutoffDate, $0) }
 	}
 
@@ -99,7 +99,7 @@ final class ArticlesTable: DatabaseTable {
 		return try fetchArticles{ self.fetchStarredArticles(webFeedIDs, $0) }
 	}
 
-	func fetchStarredArticlesAsync(_ webFeedIDs: Set<String>) async -> ArticleSetResult {
+	func fetchStarredArticlesAsync(_ webFeedIDs: Set<String>) async throws -> Set<Article> {
 		return await fetchArticlesAsync { self.fetchStarredArticles(webFeedIDs, $0) }
 	}
 
@@ -136,11 +136,11 @@ final class ArticlesTable: DatabaseTable {
 		return articles
 	}
 
-	func fetchArticlesMatchingAsync(_ searchString: String, _ webFeedIDs: Set<String>) async -> ArticleSetResult {
+	func fetchArticlesMatchingAsync(_ searchString: String, _ webFeedIDs: Set<String>) async throws -> Set<Article> {
 		return await fetchArticlesAsync { self.fetchArticlesMatching(searchString, webFeedIDs, $0) }
 	}
 
-	func fetchArticlesMatchingWithArticleIDsAsync(_ searchString: String, _ articleIDs: Set<String>) async -> ArticleSetResult {
+	func fetchArticlesMatchingWithArticleIDsAsync(_ searchString: String, _ articleIDs: Set<String>) async throws -> Set<Article> {
 		return await fetchArticlesAsync { self.fetchArticlesMatchingWithArticleIDs(searchString, articleIDs, $0) }
 	}
 
@@ -654,21 +654,23 @@ private extension ArticlesTable {
 		return articles
 	}
 
-	// TODO: perhaps we should convert this func to be 'async throws', so that it more closely matches the sync version?
-	// It depends on how we end up translating the DispatchQueue.main usage.
-	private func fetchArticlesAsync(_ fetchMethod: @escaping ArticlesFetchMethod) async -> ArticleSetResult {
-		return await withUnsafeContinuation { cont in
+	// TODO:
+	// 1. How do we want to handle this dispatch queue?
+	// 2. How about the DispatchQueue.main usage? Use @MainActor somewhere?
+	// 3. Should we keep going and convert runInDatabase?
+	private func fetchArticlesAsync(_ fetchMethod: @escaping ArticlesFetchMethod) async throws -> Set<Article> {
+		return await withUnsafeThrowingContinuation { cont in
 			queue.runInDatabase { databaseResult in
 
 				switch databaseResult {
 				case .success(let database):
 					let articles = fetchMethod(database)
-					DispatchQueue.main.async {		// TODO: convert to use @MainActor ?
-						cont.resume(.success(articles))
+					DispatchQueue.main.async {
+						cont.resume(returning: articles)
 					}
 				case .failure(let databaseError):
 					DispatchQueue.main.async {
-						cont.resume(.failure(databaseError))
+						cont.resume(throwing: databaseError)
 					}
 				}
 			}
