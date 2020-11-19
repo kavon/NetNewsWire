@@ -29,7 +29,7 @@ extension WebFeed: ArticleFetcher {
 			assertionFailure("Expected feed.account, but got nil.")
 			return Set<Article>()
 		}
-		return await account.fetchArticlesAsync(.webFeed(self))
+		return await try account.fetchArticlesAsync(.webFeed(self))
 	}
 
 	public func fetchUnreadArticles() throws -> Set<Article> {
@@ -41,7 +41,7 @@ extension WebFeed: ArticleFetcher {
 			assertionFailure("Expected feed.account, but got nil.")
 			return Set<Article>()
 		}
-		return await account.fetchArticlesAsync(.webFeed(self)).unreadArticles()
+		return await try account.fetchArticlesAsync(.webFeed(self)).unreadArticles()
 	}
 }
 
@@ -60,7 +60,7 @@ extension Folder: ArticleFetcher {
 			assertionFailure("Expected folder.account, but got nil.")
 			return Set<Article>()
 		}
-		return await account.fetchArticlesAsync(.folder(self, false))
+		return await try account.fetchArticlesAsync(.folder(self, false))
 	}
 
 	public func fetchUnreadArticles() throws -> Set<Article> {
@@ -76,6 +76,6 @@ extension Folder: ArticleFetcher {
 			assertionFailure("Expected folder.account, but got nil.")
 			return Set<Article>()
 		}
-		return await account.fetchArticlesAsync(.folder(self, true))
+		return await try account.fetchArticlesAsync(.folder(self, true))
 	}
 }

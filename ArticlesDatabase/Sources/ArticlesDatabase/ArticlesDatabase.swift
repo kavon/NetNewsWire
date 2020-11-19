@@ -125,35 +125,35 @@ public final class ArticlesDatabase {
 	// MARK: - Fetching Articles Async
 
 	public func fetchArticlesAsync(_ webFeedID: String) async throws -> Set<Article> {
-		return await articlesTable.fetchArticlesAsync(webFeedID)
+		return await try articlesTable.fetchArticlesAsync(webFeedID)
 	}
 
 	public func fetchArticlesAsync(_ webFeedIDs: Set<String>) async throws -> Set<Article> {
-		return await articlesTable.fetchArticlesAsync(webFeedIDs)
+		return await try articlesTable.fetchArticlesAsync(webFeedIDs)
 	}
 
 	public func fetchArticlesAsync(articleIDs: Set<String>) async throws -> Set<Article> {
-		return await articlesTable.fetchArticlesAsync(articleIDs: articleIDs)
+		return await try articlesTable.fetchArticlesAsync(articleIDs: articleIDs)
 	}
 
 	public func fetchUnreadArticlesAsync(_ webFeedIDs: Set<String>) async throws -> Set<Article> {
-		return await articlesTable.fetchUnreadArticlesAsync(webFeedIDs)
+		return await try articlesTable.fetchUnreadArticlesAsync(webFeedIDs)
 	}
 
 	public func fetchTodayArticlesAsync(_ webFeedIDs: Set<String>) async throws -> Set<Article> {
-		return await articlesTable.fetchArticlesSinceAsync(webFeedIDs, todayCutoffDate())
+		return await try articlesTable.fetchArticlesSinceAsync(webFeedIDs, todayCutoffDate())
 	}
 
 	public func fetchedStarredArticlesAsync(_ webFeedIDs: Set<String>) async throws -> Set<Article> {
-		return await articlesTable.fetchStarredArticlesAsync(webFeedIDs)
+		return await try articlesTable.fetchStarredArticlesAsync(webFeedIDs)
 	}
 
 	public func fetchArticlesMatchingAsync(_ searchString: String, _ webFeedIDs: Set<String>) async throws -> Set<Article> {
-		return await articlesTable.fetchArticlesMatchingAsync(searchString, webFeedIDs)
+		return await try articlesTable.fetchArticlesMatchingAsync(searchString, webFeedIDs)
 	}
 
 	public func fetchArticlesMatchingWithArticleIDsAsync(_ searchString: String, _ articleIDs: Set<String>) async throws -> Set<Article> {
-		return await articlesTable.fetchArticlesMatchingWithArticleIDsAsync(searchString, articleIDs)
+		return await try articlesTable.fetchArticlesMatchingWithArticleIDsAsync(searchString, articleIDs)
 	}
 
 	// MARK: - Unread Counts

@@ -52,7 +52,7 @@ final class ArticlesTable: DatabaseTable {
 	}
 
 	func fetchArticlesAsync(_ webFeedID: String) async throws -> Set<Article> {
-		return await fetchArticlesAsync { self.fetchArticlesForFeedID(webFeedID, $0) }
+		return await try fetchArticlesAsync { self.fetchArticlesForFeedID(webFeedID, $0) }
 	}
 
 	func fetchArticles(_ webFeedIDs: Set<String>) throws -> Set<Article> {
@@ -60,7 +60,7 @@ final class ArticlesTable: DatabaseTable {
 	}
 
 	func fetchArticlesAsync(_ webFeedIDs: Set<String>) async throws -> Set<Article> {
-		return await fetchArticlesAsync { self.fetchArticles(webFeedIDs, $0) }
+		return await try fetchArticlesAsync { self.fetchArticles(webFeedIDs, $0) }
 	}
 
 	// MARK: - Fetching Articles by articleID
@@ -70,7 +70,7 @@ final class ArticlesTable: DatabaseTable {
 	}
 
 	func fetchArticlesAsync(articleIDs: Set<String>) async throws -> Set<Article> {
-		return await fetchArticlesAsync { self.fetchArticles(articleIDs: articleIDs, $0) }
+		return await try fetchArticlesAsync { self.fetchArticles(articleIDs: articleIDs, $0) }
 	}
 
 	// MARK: - Fetching Unread Articles
@@ -80,7 +80,7 @@ final class ArticlesTable: DatabaseTable {
 	}
 
 	func fetchUnreadArticlesAsync(_ webFeedIDs: Set<String>) async throws -> Set<Article> {
-		return await fetchArticlesAsync { self.fetchUnreadArticles(webFeedIDs, $0) }
+		return await try fetchArticlesAsync { self.fetchUnreadArticles(webFeedIDs, $0) }
 	}
 
 	// MARK: - Fetching Today Articles
@@ -90,7 +90,7 @@ final class ArticlesTable: DatabaseTable {
 	}
 
 	func fetchArticlesSinceAsync(_ webFeedIDs: Set<String>, _ cutoffDate: Date) async throws -> Set<Article> {
-		return await fetchArticlesAsync { self.fetchArticlesSince(webFeedIDs, cutoffDate, $0) }
+		return await try fetchArticlesAsync { self.fetchArticlesSince(webFeedIDs, cutoffDate, $0) }
 	}
 
 	// MARK: - Fetching Starred Articles
@@ -100,7 +100,7 @@ final class ArticlesTable: DatabaseTable {
 	}
 
 	func fetchStarredArticlesAsync(_ webFeedIDs: Set<String>) async throws -> Set<Article> {
-		return await fetchArticlesAsync { self.fetchStarredArticles(webFeedIDs, $0) }
+		return await try fetchArticlesAsync { self.fetchStarredArticles(webFeedIDs, $0) }
 	}
 
 	// MARK: - Fetching Search Articles
@@ -137,11 +137,11 @@ final class ArticlesTable: DatabaseTable {
 	}
 
 	func fetchArticlesMatchingAsync(_ searchString: String, _ webFeedIDs: Set<String>) async throws -> Set<Article> {
-		return await fetchArticlesAsync { self.fetchArticlesMatching(searchString, webFeedIDs, $0) }
+		return await try fetchArticlesAsync { self.fetchArticlesMatching(searchString, webFeedIDs, $0) }
 	}
 
 	func fetchArticlesMatchingWithArticleIDsAsync(_ searchString: String, _ articleIDs: Set<String>) async throws -> Set<Article> {
-		return await fetchArticlesAsync { self.fetchArticlesMatchingWithArticleIDs(searchString, articleIDs, $0) }
+		return await try fetchArticlesAsync { self.fetchArticlesMatchingWithArticleIDs(searchString, articleIDs, $0) }
 	}
 
 	// MARK: - Fetching Articles for Indexer
@@ -659,7 +659,7 @@ private extension ArticlesTable {
 	// 2. How about the DispatchQueue.main usage? Use @MainActor somewhere?
 	// 3. Should we keep going and convert runInDatabase?
 	private func fetchArticlesAsync(_ fetchMethod: @escaping ArticlesFetchMethod) async throws -> Set<Article> {
-		return await withUnsafeThrowingContinuation { cont in
+		return await try Task.withUnsafeThrowingContinuation { cont in
 			queue.runInDatabase { databaseResult in
 
 				switch databaseResult {
