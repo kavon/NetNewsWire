@@ -67,18 +67,10 @@ final class FeedWranglerAPICaller: NSObject {
 		}
 	}
 	
-	func retrieveSubscriptions(completion: @escaping (Result<[FeedWranglerSubscription], Error>) -> Void) {
+	func retrieveSubscriptions() async throws -> [FeedWranglerSubscription] {
 		let url = FeedWranglerConfig.clientURL.appendingPathComponent("subscriptions/list")
-		
-		standardSend(url: url, resultType: FeedWranglerSubscriptionsRequest.self) { result in
-			switch result {
-			case .success(let (_, results)):
-				completion(.success(results?.feeds ?? []))
-
-			case .failure(let error):
-				completion(.failure(error))
-			}
-		}
+		let (_, results) = await try standardSend(url: url, resultType: FeedWranglerSubscriptionsRequest.self)
+		return results?.feeds ?? []
 	}
 	
 	func addSubscription(url: String, completion: @escaping (Result<FeedWranglerSubscription, Error>) -> Void) {
@@ -279,14 +271,24 @@ final class FeedWranglerAPICaller: NSObject {
 		}
 	}
 	
-	private func standardSend<R: Decodable>(url: URL?, resultType: R.Type, completion: @escaping (Result<(HTTPURLResponse, R?), Error>) -> Void) {
+	private func standardSend<R: Decodable>(url: URL?, resultType: R.Type) async throws -> (HTTPURLResponse, R?) {
 		guard let callURL = url else {
-			completion(.failure(TransportError.noURL))
-			return
+			throw TransportError.noURL
 		}
 		let request = URLRequest(url: callURL, credentials: credentials)
 		
-		transport.send(request: request, resultType: resultType, completion: completion)
+		await try Task.withUnsafeThrowingContinuation { cont in
+			// NOTE: Transport is the boundary between NNW and RSWeb
+			transport.send(request: request, resultType: resultType) { result in
+				// TODO: can we sweeten this pattern for cont?
+				switch result {
+				case .success(let val):
+					cont.resume(returning: val)
+				case .failure(let error):
+					cont.resume(throwing: error)
+				}
+			}
+		}
 	}
 
 }

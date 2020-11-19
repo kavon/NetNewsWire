@@ -61,91 +61,80 @@ final class FeedWranglerAccountDelegate: AccountDelegate {
 		caller.logout() { _ in }
 	}
 	
-	func receiveRemoteNotification(for account: Account, userInfo: [AnyHashable : Any], completion: @escaping () -> Void) {
-		completion()
+	func receiveRemoteNotification(for account: Account, userInfo: [AnyHashable : Any]) async {
+		return
 	}
 	
-	func refreshAll(for account: Account, completion: @escaping (Result<Void, Error>) -> Void) {
+	func refreshAll(for account: Account) async throws {
 		refreshProgress.addToNumberOfTasksAndRemaining(6)
 		
-		self.refreshCredentials(for: account) {
+		self.refreshCredentials(for: account)
+		self.refreshProgress.completeTask()
+		
+		await try self.refreshSubscriptions(for: account)
+		self.refreshProgress.completeTask()
+
+		// TODO: keep going here!
+		self.sendArticleStatus(for: account) { result in
 			self.refreshProgress.completeTask()
-			self.refreshSubscriptions(for: account) { result in
-				self.refreshProgress.completeTask()
-				
-				switch result {
-				case .success:
-					self.sendArticleStatus(for: account) { result in
-						self.refreshProgress.completeTask()
-						
-						switch result {
-						case .success:
-							self.refreshArticleStatus(for: account) { result in
-								self.refreshProgress.completeTask()
-								
-								switch result {
-								case .success:
-									self.refreshArticles(for: account) { result in
-										self.refreshProgress.completeTask()
-										
-										switch result {
-										case .success:
-											self.refreshMissingArticles(for: account) { result in
-												self.refreshProgress.completeTask()
-												
-												switch result {
-												case .success:
-													DispatchQueue.main.async {
-														completion(.success(()))
-													}
-												
-												case .failure(let error):
-													completion(.failure(error))
-												}
-											}
-										
-										case .failure(let error):
-											completion(.failure(error))
+			
+			switch result {
+			case .success:
+				self.refreshArticleStatus(for: account) { result in
+					self.refreshProgress.completeTask()
+					
+					switch result {
+					case .success:
+						self.refreshArticles(for: account) { result in
+							self.refreshProgress.completeTask()
+							
+							switch result {
+							case .success:
+								self.refreshMissingArticles(for: account) { result in
+									self.refreshProgress.completeTask()
+									
+									switch result {
+									case .success:
+										DispatchQueue.main.async {
+											completion(.success(()))
 										}
+									
+									case .failure(let error):
+										completion(.failure(error))
 									}
-								
-								case .failure(let error):
-									completion(.failure(error))
 								}
+							
+							case .failure(let error):
+								completion(.failure(error))
 							}
-						
-						case .failure(let error):
-							completion(.failure(error))
 						}
+					
+					case .failure(let error):
+						completion(.failure(error))
 					}
-				
-				case .failure(let error):
-					completion(.failure(error))
 				}
+			
+			case .failure(let error):
+				completion(.failure(error))
 			}
+		}
 		}
 	}
 	
-	func refreshCredentials(for account: Account, completion: @escaping (() -> Void)) {
+	func refreshCredentials(for account: Account) { // NOTE: the completion handler seems pointless at the moment.
 		os_log(.debug, log: log, "Refreshing credentials...")
 		// MARK: TODO
 		credentials = try? account.retrieveCredentials(type: .feedWranglerToken)
-		completion()
 	}
 	
-	func refreshSubscriptions(for account: Account, completion: @escaping ((Result<Void, Error>) -> Void)) {
+	func refreshSubscriptions(for account: Account) async throws {
 		os_log(.debug, log: log, "Refreshing subscriptions...")
-		caller.retrieveSubscriptions { result in
-			switch result {
-			case .success(let subscriptions):
-				self.syncFeeds(account, subscriptions)
-				completion(.success(()))
-				
-			case .failure(let error):
-				os_log(.debug, log: self.log, "Failed to refresh subscriptions: %@", error.localizedDescription)
-				completion(.failure(error))
-			}
-			
+		do {
+			let subscriptions = await try caller.retrieveSubscriptions()
+			self.syncFeeds(account, subscriptions)
+		} catch let error {
+			os_log(.debug, log: self.log, "Failed to refresh subscriptions: %@", error.localizedDescription)
+			throw error
 		}
 	}
 	
