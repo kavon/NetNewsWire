@@ -210,9 +210,9 @@ public final class ArticlesDatabase {
 	}
 
 	/// Update articles and save new ones — for sync systems (Feedbin, Feedly, etc.).
-	public func update(webFeedIDsAndItems: [String: Set<ParsedItem>], defaultRead: Bool, completion: @escaping UpdateArticlesCompletionBlock) {
+	public func update(webFeedIDsAndItems: [String: Set<ParsedItem>], defaultRead: Bool) async throws -> ArticleChanges {
 		precondition(retentionStyle == .syncSystem)
-		articlesTable.update(webFeedIDsAndItems, defaultRead, completion)
+		return await try articlesTable.update(webFeedIDsAndItems, defaultRead)
 	}
 
 	/// Delete articles

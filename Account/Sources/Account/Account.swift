@@ -774,24 +774,16 @@ public final class Account: DisplayNameProvider, UnreadCountProvider, Container,
 		}
 	}
 
-	func update(webFeedIDsAndItems: [String: Set<ParsedItem>], defaultRead: Bool, completion: @escaping DatabaseCompletionBlock) {
+	@MainActor func update(webFeedIDsAndItems: [String: Set<ParsedItem>], defaultRead: Bool) async throws {
 		// Used only by syncing systems.
 		precondition(Thread.isMainThread)
 		precondition(type != .onMyMac && type != .cloudKit)
 		guard !webFeedIDsAndItems.isEmpty else {
-			completion(nil)
 			return
 		}
 
-		database.update(webFeedIDsAndItems: webFeedIDsAndItems, defaultRead: defaultRead) { updateArticlesResult in
-			switch updateArticlesResult {
-			case .success(let newAndUpdatedArticles):
-				self.sendNotificationAbout(newAndUpdatedArticles)
-				completion(nil)
-			case .failure(let databaseError):
-				completion(databaseError)
-			}
-		}
+		let newAndUpdatedArticles = await try database.update(webFeedIDsAndItems: webFeedIDsAndItems, defaultRead: defaultRead)
+		self.sendNotificationAbout(newAndUpdatedArticles)
 	}
 
 	func update(_ articles: Set<Article>, statusKey: ArticleStatus.Key, flag: Bool, completion: @escaping ArticleSetResultBlock) {

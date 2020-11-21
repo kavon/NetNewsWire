@@ -156,7 +156,7 @@ final class FeedWranglerAPICaller: NSObject {
 		
 	}
 	
-	func retrieveFeedItems(page: Int = 0, feed: WebFeed? = nil, completion: @escaping (Result<[FeedWranglerFeedItem], Error>) -> Void) {
+	func retrieveFeedItems(page: Int = 0, feed: WebFeed? = nil) async throws -> [FeedWranglerFeedItem] {
 		let queryItems = [
 			URLQueryItem(name: "read", value: "false"),
 			URLQueryItem(name: "offset", value: String(page * FeedWranglerConfig.pageSize)),
@@ -166,18 +166,11 @@ final class FeedWranglerAPICaller: NSObject {
 			.appendingPathComponent("feed_items/list")
 			.appendingQueryItems(queryItems)
 
-		standardSend(url: url, resultType: FeedWranglerFeedItemsRequest.self) { result in
-			switch result {
-			case .success(let (_, results)):
-				completion(.success(results?.feedItems ?? []))
-
-			case .failure(let error):
-				completion(.failure(error))
-			}
-		}
+		let (_, results) = await try standardSend(url: url, resultType: FeedWranglerFeedItemsRequest.self)
+		return results?.feedItems ?? []
 	}
 	
-	func retrieveUnreadFeedItems(page: Int = 0, completion: @escaping (Result<[FeedWranglerFeedItem], Error>) -> Void) {
+	func retrieveUnreadFeedItems(page: Int = 0) async throws -> [FeedWranglerFeedItem] {
 		let url = FeedWranglerConfig.clientURL
 			.appendingPathComponent("feed_items/list")
 			.appendingQueryItems([
@@ -185,34 +178,20 @@ final class FeedWranglerAPICaller: NSObject {
 				URLQueryItem(name: "offset", value: String(page * FeedWranglerConfig.pageSize)),
 			])
 		
-		standardSend(url: url, resultType: FeedWranglerFeedItemsRequest.self) { result in
-			switch result {
-			case .success(let (_, results)):
-				completion(.success(results?.feedItems ?? []))
-
-			case .failure(let error):
-				completion(.failure(error))
-			}
+		let (_, results) = await try standardSend(url: url, resultType: FeedWranglerFeedItemsRequest.self)
+		return results?.feedItems ?? []
+	}
+	
+	func retrieveAllUnreadFeedItems(foundItems: [FeedWranglerFeedItem] = [], page: Int = 0) async throws -> [FeedWranglerFeedItem] {
+		let newItems = await try retrieveUnreadFeedItems(page: page)
+		if newItems.count > 0 {
+			return await try self.retrieveAllUnreadFeedItems(foundItems: foundItems + newItems, page: (page + 1))
+		} else {
+			return foundItems + newItems
 		}
 	}
 	
-	func retrieveAllUnreadFeedItems(foundItems: [FeedWranglerFeedItem] = [], page: Int = 0, completion: @escaping (Result<[FeedWranglerFeedItem], Error>) -> Void) {
-		retrieveUnreadFeedItems(page: page) { result in
-			switch result {
-			case .success(let newItems):
-				if newItems.count > 0 {
-					self.retrieveAllUnreadFeedItems(foundItems: foundItems + newItems, page: (page + 1), completion: completion)
-				} else {
-					completion(.success(foundItems + newItems))
-				}
-				
-			case .failure(let error):
-				completion(.failure(error))
-			}
-		}
-	}
-	
-	func retrieveStarredFeedItems(page: Int = 0, completion: @escaping (Result<[FeedWranglerFeedItem], Error>) -> Void) {
+	func retrieveStarredFeedItems(page: Int = 0) async throws -> [FeedWranglerFeedItem] {
 		let url = FeedWranglerConfig.clientURL
 			.appendingPathComponent("feed_items/list")
 			.appendingQueryItems([
@@ -220,34 +199,20 @@ final class FeedWranglerAPICaller: NSObject {
 				URLQueryItem(name: "offset", value: String(page * FeedWranglerConfig.pageSize)),
 			])
 		
-		standardSend(url: url, resultType: FeedWranglerFeedItemsRequest.self) { result in
-			switch result {
-			case .success(let (_, results)):
-				completion(.success(results?.feedItems ?? []))
-
-			case .failure(let error):
-				completion(.failure(error))
-			}
+		let (_, results) = await try standardSend(url: url, resultType: FeedWranglerFeedItemsRequest.self)
+		return results?.feedItems ?? []
+	}
+	
+	func retrieveAllStarredFeedItems(foundItems: [FeedWranglerFeedItem] = [], page: Int = 0) async throws -> [FeedWranglerFeedItem] {
+		let newItems = retrieveStarredFeedItems(page: page)
+		if newItems.count > 0 {
+			return await try self.retrieveAllStarredFeedItems(foundItems: foundItems + newItems, page: (page + 1))
+		} else {
+			return foundItems + newItems
 		}
 	}
 	
-	func retrieveAllStarredFeedItems(foundItems: [FeedWranglerFeedItem] = [], page: Int = 0, completion: @escaping (Result<[FeedWranglerFeedItem], Error>) -> Void) {
-		retrieveStarredFeedItems(page: page) { result in
-			switch result {
-			case .success(let newItems):
-				if newItems.count > 0 {
-					self.retrieveAllStarredFeedItems(foundItems: foundItems + newItems, page: (page + 1), completion: completion)
-				} else {
-					completion(.success(foundItems + newItems))
-				}
-				
-			case .failure(let error):
-				completion(.failure(error))
-			}
-		}
-	}
-	
-	func updateArticleStatus(_ articleID: String, _ statuses: [SyncStatus], completion: @escaping () -> Void) {
+	func updateArticleStatus(_ articleID: String, _ statuses: [SyncStatus]) async {
 		
 		var queryItems = statuses.compactMap { status -> URLQueryItem? in
 			switch status.key {
@@ -266,9 +231,7 @@ final class FeedWranglerAPICaller: NSObject {
 			.appendingPathComponent("feed_items/update")
 			.appendingQueryItems(queryItems)
 					
-		standardSend(url: url, resultType: FeedWranglerGenericResult.self) { result in
-			completion()
-		}
+		await try? standardSend(url: url, resultType: FeedWranglerGenericResult.self)
 	}
 	
 	private func standardSend<R: Decodable>(url: URL?, resultType: R.Type) async throws -> (HTTPURLResponse, R?) {

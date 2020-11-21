@@ -253,6 +253,7 @@ final class ArticlesTable: DatabaseTable {
 		}
 	}
 
+	// TODO: convert to: async throws -> ArticleChanges
 	func update(_ webFeedIDsAndItems: [String: Set<ParsedItem>], _ read: Bool, _ completion: @escaping UpdateArticlesCompletionBlock) {
 		precondition(retentionStyle == .syncSystem)
 		if webFeedIDsAndItems.isEmpty {

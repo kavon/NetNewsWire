@@ -21,37 +21,39 @@ struct SyncStatusTable: DatabaseTable {
 		self.queue = queue
 	}
 
-	func selectForProcessing(limit: Int?, completion: @escaping SyncStatusesCompletionBlock) {
-		queue.runInTransaction { databaseResult in
-			var statuses = Set<SyncStatus>()
-			var error: DatabaseError?
+	func selectForProcessing(limit: Int?) async throws -> Array<SyncStatus> {
+		return await try Task.withUnsafeThrowingContinuation { cont in
+			queue.runInTransaction { databaseResult in
+				var statuses = Set<SyncStatus>()
+				var error: DatabaseError?
 
-			func makeDatabaseCall(_ database: FMDatabase) {
-				let updateSQL = "update syncStatus set selected = true"
-				database.executeUpdate(updateSQL, withArgumentsIn: nil)
+				func makeDatabaseCall(_ database: FMDatabase) {
+					let updateSQL = "update syncStatus set selected = true"
+					database.executeUpdate(updateSQL, withArgumentsIn: nil)
 
-				var selectSQL = "select * from syncStatus where selected == true"
-				if let limit = limit {
-					selectSQL = "\(selectSQL) limit \(limit)"
+					var selectSQL = "select * from syncStatus where selected == true"
+					if let limit = limit {
+						selectSQL = "\(selectSQL) limit \(limit)"
+					}
+					if let resultSet = database.executeQuery(selectSQL, withArgumentsIn: nil) {
+						statuses = resultSet.mapToSet(self.statusWithRow)
+					}
 				}
-				if let resultSet = database.executeQuery(selectSQL, withArgumentsIn: nil) {
-					statuses = resultSet.mapToSet(self.statusWithRow)
-				}
-			}
 
-			switch databaseResult {
-			case .success(let database):
-				makeDatabaseCall(database)
-			case .failure(let databaseError):
-				error = databaseError
-			}
-
-			DispatchQueue.main.async {
-				if let error = error {
-					completion(.failure(error))
+				switch databaseResult {
+				case .success(let database):
+					makeDatabaseCall(database)
+				case .failure(let databaseError):
+					error = databaseError
 				}
-				else {
-					completion(.success(Array(statuses)))
+
+				DispatchQueue.main.async { // TODO: should this queue dispatch change?
+					if let error = error {
+						cont.resume(throwing: error)
+					}
+					else {
+						cont.resume(returning: Array(statuses))
+					}
 				}
 			}
 		}
