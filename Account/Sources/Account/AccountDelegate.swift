@@ -23,26 +23,26 @@ protocol AccountDelegate {
 	
 	var refreshProgress: DownloadProgress { get }
 
-	func receiveRemoteNotification(for account: Account, userInfo: [AnyHashable : Any], completion: @escaping () -> Void)
+	func receiveRemoteNotification(for account: Account, userInfo: [AnyHashable : Any]) async
 
-	func refreshAll(for account: Account, completion: @escaping (Result<Void, Error>) -> Void)
-	func sendArticleStatus(for account: Account, completion: @escaping ((Result<Void, Error>) -> Void))
-	func refreshArticleStatus(for account: Account, completion: @escaping ((Result<Void, Error>) -> Void))
+	func refreshAll(for account: Account) async throws
+	func sendArticleStatus(for account: Account) async throws
+	func refreshArticleStatus(for account: Account) async throws
 	
-	func importOPML(for account:Account, opmlFile: URL, completion: @escaping (Result<Void, Error>) -> Void)
+	func importOPML(for account:Account, opmlFile: URL) async throws
 	
-	func createFolder(for account: Account, name: String, completion: @escaping (Result<Folder, Error>) -> Void)
-	func renameFolder(for account: Account, with folder: Folder, to name: String, completion: @escaping (Result<Void, Error>) -> Void)
-	func removeFolder(for account: Account, with folder: Folder, completion: @escaping (Result<Void, Error>) -> Void)
+	func createFolder(for account: Account, name: String) async throws -> Folder
+	func renameFolder(for account: Account, with folder: Folder, to name: String) async throws
+	func removeFolder(for account: Account, with folder: Folder) async throws
 
-	func createWebFeed(for account: Account, url: String, name: String?, container: Container, completion: @escaping (Result<WebFeed, Error>) -> Void)
-	func renameWebFeed(for account: Account, with feed: WebFeed, to name: String, completion: @escaping (Result<Void, Error>) -> Void)
-	func addWebFeed(for account: Account, with: WebFeed, to container: Container, completion: @escaping (Result<Void, Error>) -> Void)
-	func removeWebFeed(for account: Account, with feed: WebFeed, from container: Container, completion: @escaping (Result<Void, Error>) -> Void)
-	func moveWebFeed(for account: Account, with feed: WebFeed, from: Container, to: Container, completion: @escaping (Result<Void, Error>) -> Void)
+	func createWebFeed(for account: Account, url: String, name: String?, container: Container) async throws -> WebFeed
+	func renameWebFeed(for account: Account, with feed: WebFeed, to name: String) async throws
+	func addWebFeed(for account: Account, with: WebFeed, to container: Container) async throws
+	func removeWebFeed(for account: Account, with feed: WebFeed, from container: Container) async throws
+	func moveWebFeed(for account: Account, with feed: WebFeed, from: Container, to: Container) async throws
 
-	func restoreWebFeed(for account: Account, feed: WebFeed, container: Container, completion: @escaping (Result<Void, Error>) -> Void)
-	func restoreFolder(for account: Account, folder: Folder, completion: @escaping (Result<Void, Error>) -> Void)
+	func restoreWebFeed(for account: Account, feed: WebFeed, container: Container) async throws
+	func restoreFolder(for account: Account, folder: Folder) async throws
 
 	func markArticles(for account: Account, articles: Set<Article>, statusKey: ArticleStatus.Key, flag: Bool)
 
@@ -51,7 +51,7 @@ protocol AccountDelegate {
 	
 	func accountWillBeDeleted(_ account: Account)
 
-	static func validateCredentials(transport: Transport, credentials: Credentials, endpoint: URL?, completion: @escaping (Result<Credentials?, Error>) -> Void)
+	static func validateCredentials(transport: Transport, credentials: Credentials, endpoint: URL?) async throws -> Credentials?
 
 	/// Suspend all network activity
 	func suspendNetwork()

@@ -61,111 +61,76 @@ final class FeedWranglerAccountDelegate: AccountDelegate {
 		caller.logout() { _ in }
 	}
 	
-	func receiveRemoteNotification(for account: Account, userInfo: [AnyHashable : Any], completion: @escaping () -> Void) {
-		completion()
+	func receiveRemoteNotification(for account: Account, userInfo: [AnyHashable : Any]) async {
+		return
 	}
 	
-	func refreshAll(for account: Account, completion: @escaping (Result<Void, Error>) -> Void) {
+	func refreshAll(for account: Account) async throws {
 		refreshProgress.addToNumberOfTasksAndRemaining(6)
 		
-		self.refreshCredentials(for: account) {
+		self.refreshCredentials(for: account)
+		self.refreshProgress.completeTask()
+		
+		await try self.refreshSubscriptions(for: account)
+		self.refreshProgress.completeTask()
+
+		await try self.sendArticleStatus(for: account)
+		self.refreshProgress.completeTask()
+			
+		await self.refreshArticleStatus(for: account)
+		self.refreshProgress.completeTask()
+
+		await try self.refreshArticles(for: account)
+		self.refreshProgress.completeTask()
+		
+		// TODO: keep going!
+		self.refreshMissingArticles(for: account) { result in
 			self.refreshProgress.completeTask()
-			self.refreshSubscriptions(for: account) { result in
-				self.refreshProgress.completeTask()
-				
-				switch result {
-				case .success:
-					self.sendArticleStatus(for: account) { result in
-						self.refreshProgress.completeTask()
-						
-						switch result {
-						case .success:
-							self.refreshArticleStatus(for: account) { result in
-								self.refreshProgress.completeTask()
-								
-								switch result {
-								case .success:
-									self.refreshArticles(for: account) { result in
-										self.refreshProgress.completeTask()
-										
-										switch result {
-										case .success:
-											self.refreshMissingArticles(for: account) { result in
-												self.refreshProgress.completeTask()
-												
-												switch result {
-												case .success:
-													DispatchQueue.main.async {
-														completion(.success(()))
-													}
-												
-												case .failure(let error):
-													completion(.failure(error))
-												}
-											}
-										
-										case .failure(let error):
-											completion(.failure(error))
-										}
-									}
-								
-								case .failure(let error):
-									completion(.failure(error))
-								}
-							}
-						
-						case .failure(let error):
-							completion(.failure(error))
-						}
-					}
-				
-				case .failure(let error):
-					completion(.failure(error))
+			
+			switch result {
+			case .success:
+				DispatchQueue.main.async {
+					completion(.success(()))
 				}
+			
+			case .failure(let error):
+				completion(.failure(error))
 			}
 		}
 	}
 	
-	func refreshCredentials(for account: Account, completion: @escaping (() -> Void)) {
+	// TODO: revisit this once we've settled on global actor design.
+	// asyncronously performs an operation on DispatchQueue.main
+	@MainActor private func onMainActor(_ operation : () async -> Void ) async {
+		await operation()
+	}
+	
+	func refreshCredentials(for account: Account) { // NOTE: the completion handler seems pointless at the moment.
 		os_log(.debug, log: log, "Refreshing credentials...")
 		// MARK: TODO
 		credentials = try? account.retrieveCredentials(type: .feedWranglerToken)
-		completion()
 	}
 	
-	func refreshSubscriptions(for account: Account, completion: @escaping ((Result<Void, Error>) -> Void)) {
+	func refreshSubscriptions(for account: Account) async throws {
 		os_log(.debug, log: log, "Refreshing subscriptions...")
-		caller.retrieveSubscriptions { result in
-			switch result {
-			case .success(let subscriptions):
-				self.syncFeeds(account, subscriptions)
-				completion(.success(()))
-				
-			case .failure(let error):
-				os_log(.debug, log: self.log, "Failed to refresh subscriptions: %@", error.localizedDescription)
-				completion(.failure(error))
-			}
-			
+		do {
+			let subscriptions = await try caller.retrieveSubscriptions()
+			self.syncFeeds(account, subscriptions)
+		} catch let error {
+			os_log(.debug, log: self.log, "Failed to refresh subscriptions: %@", error.localizedDescription)
+			throw error
 		}
 	}
 	
-	func refreshArticles(for account: Account, page: Int = 0, completion: @escaping ((Result<Void, Error>) -> Void)) {
+	func refreshArticles(for account: Account, page: Int = 0) async throws {
 		os_log(.debug, log: log, "Refreshing articles, page: %d...", page)
 		
-		caller.retrieveFeedItems(page: page) { result in
-			switch result {
-			case .success(let items):
-				self.syncFeedItems(account, items) {
-					if items.count == 0 {
-						completion(.success(()))
-					} else {
-						self.refreshArticles(for: account, page: (page + 1), completion: completion)
-					}
-				}
-
-			case .failure(let error):
-				completion(.failure(error))
-			}
+		let items = await try caller.retrieveFeedItems(page: page)
+		await self.syncFeedItems(account, items)
+		if items.count == 0 {
+			return
+		} else {
+			return await try self.refreshArticles(for: account, page: (page + 1))
 		}
 	}
 	
@@ -212,71 +177,43 @@ final class FeedWranglerAccountDelegate: AccountDelegate {
 		}
 	}
 	
-	func sendArticleStatus(for account: Account, completion: @escaping VoidResultCompletionBlock) {
+	func sendArticleStatus(for account: Account) async throws {
 		os_log(.debug, log: log, "Sending article status...")
 
-		database.selectForProcessing { result in
+		let syncStatuses = await try database.selectForProcessing()
+		let articleStatuses = Dictionary(grouping: syncStatuses, by: { $0.articleID })
+		
+		// NOTE: Dictionary.forEach is sequential, so the previous DispatchGroup usage here was not needed
+		// and could be simplified as performing the logging operation on the main dispatch queue.
+		articleStatuses.forEach { articleID, statuses in
+			await self.caller.updateArticleStatus(articleID, statuses)
+		}
 
-			func processStatuses(_ syncStatuses: [SyncStatus]) {
-				let articleStatuses = Dictionary(grouping: syncStatuses, by: { $0.articleID })
-				let group = DispatchGroup()
-
-				articleStatuses.forEach { articleID, statuses in
-					group.enter()
-					self.caller.updateArticleStatus(articleID, statuses) {
-						group.leave()
-					}
-				}
-
-				group.notify(queue: DispatchQueue.main) {
-					os_log(.debug, log: self.log, "Done sending article statuses.")
-					completion(.success(()))
-				}
-			}
-
-			switch result {
-			case .success(let syncStatuses):
-				processStatuses(syncStatuses)
-			case .failure(let databaseError):
-				completion(.failure(databaseError))
-			}
+		await self.onMainActor {
+			os_log(.debug, log: self.log, "Done sending article statuses.")
 		}
 	}
 	
-	func refreshArticleStatus(for account: Account, completion: @escaping ((Result<Void, Error>) -> Void)) {
+	func refreshArticleStatus(for account: Account) async {
 		os_log(.debug, log: log, "Refreshing article status...")
-		let group = DispatchGroup()
 		
-		group.enter()
-		caller.retrieveAllUnreadFeedItems { result in
-			switch result {
-			case .success(let items):
-				self.syncArticleReadState(account, items)
-				group.leave()
-				
-			case .failure(let error):
-				os_log(.info, log: self.log, "Retrieving unread entries failed: %@.", error.localizedDescription)
-				group.leave()
-			}
+		do {
+			let items = await try caller.retrieveAllUnreadFeedItems()
+			self.syncArticleReadState(account, items)
+		} catch let error {
+			os_log(.info, log: self.log, "Retrieving unread entries failed: %@.", error.localizedDescription)
 		}
 		
 		// starred
-		group.enter()
-		caller.retrieveAllStarredFeedItems { result in
-			switch result {
-			case .success(let items):
-				self.syncArticleStarredState(account, items)
-				group.leave()
-				
-			case .failure(let error):
-				os_log(.info, log: self.log, "Retrieving starred entries failed: %@.", error.localizedDescription)
-				group.leave()
-			}
+		do {
+			let items = await try caller.retrieveAllStarredFeedItems()
+			self.syncArticleStarredState(account, items)
+		} catch let error {
+			os_log(.info, log: self.log, "Retrieving starred entries failed: %@.", error.localizedDescription)
 		}
 		
-		group.notify(queue: DispatchQueue.main) {
+		await self.onMainActor {
 			os_log(.debug, log: self.log, "Done refreshing article statuses.")
-			completion(.success(()))
 		}
 	}
 	
@@ -520,7 +457,7 @@ private extension FeedWranglerAccountDelegate {
 		}
 	}
 	
-	func syncFeedItems(_ account: Account, _ feedItems: [FeedWranglerFeedItem], completion: @escaping VoidCompletionBlock) {
+	func syncFeedItems(_ account: Account, _ feedItems: [FeedWranglerFeedItem]) async {
 		let parsedItems = feedItems.map { (item: FeedWranglerFeedItem) -> ParsedItem in
 			let itemID = String(item.feedItemID)
 			// let authors = ...
@@ -530,9 +467,7 @@ private extension FeedWranglerAccountDelegate {
 		}
 		
 		let feedIDsAndItems = Dictionary(grouping: parsedItems, by: { $0.feedURL }).mapValues { Set($0) }
-		account.update(webFeedIDsAndItems: feedIDsAndItems, defaultRead: true) { _ in
-			completion()
-		}
+		await try? account.update(webFeedIDsAndItems: feedIDsAndItems, defaultRead: true)
 	}
 	
 	func syncArticleReadState(_ account: Account, _ unreadFeedItems: [FeedWranglerFeedItem]) {

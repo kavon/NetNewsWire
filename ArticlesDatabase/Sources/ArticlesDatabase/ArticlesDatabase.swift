@@ -124,36 +124,36 @@ public final class ArticlesDatabase {
 
 	// MARK: - Fetching Articles Async
 
-	public func fetchArticlesAsync(_ webFeedID: String, _ completion: @escaping ArticleSetResultBlock) {
-		articlesTable.fetchArticlesAsync(webFeedID, completion)
+	public func fetchArticlesAsync(_ webFeedID: String) async throws -> Set<Article> {
+		return await try articlesTable.fetchArticlesAsync(webFeedID)
 	}
 
-	public func fetchArticlesAsync(_ webFeedIDs: Set<String>, _ completion: @escaping ArticleSetResultBlock) {
-		articlesTable.fetchArticlesAsync(webFeedIDs, completion)
+	public func fetchArticlesAsync(_ webFeedIDs: Set<String>) async throws -> Set<Article> {
+		return await try articlesTable.fetchArticlesAsync(webFeedIDs)
 	}
 
-	public func fetchArticlesAsync(articleIDs: Set<String>, _ completion: @escaping  ArticleSetResultBlock) {
-		articlesTable.fetchArticlesAsync(articleIDs: articleIDs, completion)
+	public func fetchArticlesAsync(articleIDs: Set<String>) async throws -> Set<Article> {
+		return await try articlesTable.fetchArticlesAsync(articleIDs: articleIDs)
 	}
 
-	public func fetchUnreadArticlesAsync(_ webFeedIDs: Set<String>, _ completion: @escaping ArticleSetResultBlock) {
-		articlesTable.fetchUnreadArticlesAsync(webFeedIDs, completion)
+	public func fetchUnreadArticlesAsync(_ webFeedIDs: Set<String>) async throws -> Set<Article> {
+		return await try articlesTable.fetchUnreadArticlesAsync(webFeedIDs)
 	}
 
-	public func fetchTodayArticlesAsync(_ webFeedIDs: Set<String>, _ completion: @escaping ArticleSetResultBlock) {
-		articlesTable.fetchArticlesSinceAsync(webFeedIDs, todayCutoffDate(), completion)
+	public func fetchTodayArticlesAsync(_ webFeedIDs: Set<String>) async throws -> Set<Article> {
+		return await try articlesTable.fetchArticlesSinceAsync(webFeedIDs, todayCutoffDate())
 	}
 
-	public func fetchedStarredArticlesAsync(_ webFeedIDs: Set<String>, _ completion: @escaping ArticleSetResultBlock) {
-		articlesTable.fetchStarredArticlesAsync(webFeedIDs, completion)
+	public func fetchedStarredArticlesAsync(_ webFeedIDs: Set<String>) async throws -> Set<Article> {
+		return await try articlesTable.fetchStarredArticlesAsync(webFeedIDs)
 	}
 
-	public func fetchArticlesMatchingAsync(_ searchString: String, _ webFeedIDs: Set<String>, _ completion: @escaping ArticleSetResultBlock) {
-		articlesTable.fetchArticlesMatchingAsync(searchString, webFeedIDs, completion)
+	public func fetchArticlesMatchingAsync(_ searchString: String, _ webFeedIDs: Set<String>) async throws -> Set<Article> {
+		return await try articlesTable.fetchArticlesMatchingAsync(searchString, webFeedIDs)
 	}
 
-	public func fetchArticlesMatchingWithArticleIDsAsync(_ searchString: String, _ articleIDs: Set<String>, _ completion: @escaping ArticleSetResultBlock) {
-		articlesTable.fetchArticlesMatchingWithArticleIDsAsync(searchString, articleIDs, completion)
+	public func fetchArticlesMatchingWithArticleIDsAsync(_ searchString: String, _ articleIDs: Set<String>) async throws -> Set<Article> {
+		return await try articlesTable.fetchArticlesMatchingWithArticleIDsAsync(searchString, articleIDs)
 	}
 
 	// MARK: - Unread Counts
@@ -210,9 +210,9 @@ public final class ArticlesDatabase {
 	}
 
 	/// Update articles and save new ones — for sync systems (Feedbin, Feedly, etc.).
-	public func update(webFeedIDsAndItems: [String: Set<ParsedItem>], defaultRead: Bool, completion: @escaping UpdateArticlesCompletionBlock) {
+	public func update(webFeedIDsAndItems: [String: Set<ParsedItem>], defaultRead: Bool) async throws -> ArticleChanges {
 		precondition(retentionStyle == .syncSystem)
-		articlesTable.update(webFeedIDsAndItems, defaultRead, completion)
+		return await try articlesTable.update(webFeedIDsAndItems, defaultRead)
 	}
 
 	/// Delete articles

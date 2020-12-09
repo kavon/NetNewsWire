@@ -51,16 +51,16 @@ final class ArticlesTable: DatabaseTable {
 		return try fetchArticles{ self.fetchArticlesForFeedID(webFeedID, $0) }
 	}
 
-	func fetchArticlesAsync(_ webFeedID: String, _ completion: @escaping ArticleSetResultBlock) {
-		fetchArticlesAsync({ self.fetchArticlesForFeedID(webFeedID, $0) }, completion)
+	func fetchArticlesAsync(_ webFeedID: String) async throws -> Set<Article> {
+		return await try fetchArticlesAsync { self.fetchArticlesForFeedID(webFeedID, $0) }
 	}
 
 	func fetchArticles(_ webFeedIDs: Set<String>) throws -> Set<Article> {
 		return try fetchArticles{ self.fetchArticles(webFeedIDs, $0) }
 	}
 
-	func fetchArticlesAsync(_ webFeedIDs: Set<String>, _ completion: @escaping ArticleSetResultBlock) {
-		fetchArticlesAsync({ self.fetchArticles(webFeedIDs, $0) }, completion)
+	func fetchArticlesAsync(_ webFeedIDs: Set<String>) async throws -> Set<Article> {
+		return await try fetchArticlesAsync { self.fetchArticles(webFeedIDs, $0) }
 	}
 
 	// MARK: - Fetching Articles by articleID
@@ -69,8 +69,8 @@ final class ArticlesTable: DatabaseTable {
 		return try fetchArticles{ self.fetchArticles(articleIDs: articleIDs, $0) }
 	}
 
-	func fetchArticlesAsync(articleIDs: Set<String>, _ completion: @escaping ArticleSetResultBlock) {
-		return fetchArticlesAsync({ self.fetchArticles(articleIDs: articleIDs, $0) }, completion)
+	func fetchArticlesAsync(articleIDs: Set<String>) async throws -> Set<Article> {
+		return await try fetchArticlesAsync { self.fetchArticles(articleIDs: articleIDs, $0) }
 	}
 
 	// MARK: - Fetching Unread Articles
@@ -79,8 +79,8 @@ final class ArticlesTable: DatabaseTable {
 		return try fetchArticles{ self.fetchUnreadArticles(webFeedIDs, $0) }
 	}
 
-	func fetchUnreadArticlesAsync(_ webFeedIDs: Set<String>, _ completion: @escaping ArticleSetResultBlock) {
-		fetchArticlesAsync({ self.fetchUnreadArticles(webFeedIDs, $0) }, completion)
+	func fetchUnreadArticlesAsync(_ webFeedIDs: Set<String>) async throws -> Set<Article> {
+		return await try fetchArticlesAsync { self.fetchUnreadArticles(webFeedIDs, $0) }
 	}
 
 	// MARK: - Fetching Today Articles
@@ -89,8 +89,8 @@ final class ArticlesTable: DatabaseTable {
 		return try fetchArticles{ self.fetchArticlesSince(webFeedIDs, cutoffDate, $0) }
 	}
 
-	func fetchArticlesSinceAsync(_ webFeedIDs: Set<String>, _ cutoffDate: Date, _ completion: @escaping ArticleSetResultBlock) {
-		fetchArticlesAsync({ self.fetchArticlesSince(webFeedIDs, cutoffDate, $0) }, completion)
+	func fetchArticlesSinceAsync(_ webFeedIDs: Set<String>, _ cutoffDate: Date) async throws -> Set<Article> {
+		return await try fetchArticlesAsync { self.fetchArticlesSince(webFeedIDs, cutoffDate, $0) }
 	}
 
 	// MARK: - Fetching Starred Articles
@@ -99,8 +99,8 @@ final class ArticlesTable: DatabaseTable {
 		return try fetchArticles{ self.fetchStarredArticles(webFeedIDs, $0) }
 	}
 
-	func fetchStarredArticlesAsync(_ webFeedIDs: Set<String>, _ completion: @escaping ArticleSetResultBlock) {
-		fetchArticlesAsync({ self.fetchStarredArticles(webFeedIDs, $0) }, completion)
+	func fetchStarredArticlesAsync(_ webFeedIDs: Set<String>) async throws -> Set<Article> {
+		return await try fetchArticlesAsync { self.fetchStarredArticles(webFeedIDs, $0) }
 	}
 
 	// MARK: - Fetching Search Articles
@@ -136,12 +136,12 @@ final class ArticlesTable: DatabaseTable {
 		return articles
 	}
 
-	func fetchArticlesMatchingAsync(_ searchString: String, _ webFeedIDs: Set<String>, _ completion: @escaping ArticleSetResultBlock) {
-		fetchArticlesAsync({ self.fetchArticlesMatching(searchString, webFeedIDs, $0) }, completion)
+	func fetchArticlesMatchingAsync(_ searchString: String, _ webFeedIDs: Set<String>) async throws -> Set<Article> {
+		return await try fetchArticlesAsync { self.fetchArticlesMatching(searchString, webFeedIDs, $0) }
 	}
 
-	func fetchArticlesMatchingWithArticleIDsAsync(_ searchString: String, _ articleIDs: Set<String>, _ completion: @escaping ArticleSetResultBlock) {
-		fetchArticlesAsync({ self.fetchArticlesMatchingWithArticleIDs(searchString, articleIDs, $0) }, completion)
+	func fetchArticlesMatchingWithArticleIDsAsync(_ searchString: String, _ articleIDs: Set<String>) async throws -> Set<Article> {
+		return await try fetchArticlesAsync { self.fetchArticlesMatchingWithArticleIDs(searchString, articleIDs, $0) }
 	}
 
 	// MARK: - Fetching Articles for Indexer
@@ -253,6 +253,7 @@ final class ArticlesTable: DatabaseTable {
 		}
 	}
 
+	// TODO: convert to: async throws -> ArticleChanges
 	func update(_ webFeedIDsAndItems: [String: Set<ParsedItem>], _ read: Bool, _ completion: @escaping UpdateArticlesCompletionBlock) {
 		precondition(retentionStyle == .syncSystem)
 		if webFeedIDsAndItems.isEmpty {
@@ -654,18 +655,24 @@ private extension ArticlesTable {
 		return articles
 	}
 
-	private func fetchArticlesAsync(_ fetchMethod: @escaping ArticlesFetchMethod, _ completion: @escaping ArticleSetResultBlock) {
-		queue.runInDatabase { databaseResult in
+	// TODO:
+	// 1. How do we want to handle this dispatch queue?
+	// 2. How about the DispatchQueue.main usage? Use @MainActor somewhere?
+	// 3. Should we keep going and convert runInDatabase?
+	private func fetchArticlesAsync(_ fetchMethod: @escaping ArticlesFetchMethod) async throws -> Set<Article> {
+		return await try Task.withUnsafeThrowingContinuation { cont in
+			queue.runInDatabase { databaseResult in
 
-			switch databaseResult {
-			case .success(let database):
-				let articles = fetchMethod(database)
-				DispatchQueue.main.async {
-					completion(.success(articles))
-				}
-			case .failure(let databaseError):
-				DispatchQueue.main.async {
-					completion(.failure(databaseError))
+				switch databaseResult {
+				case .success(let database):
+					let articles = fetchMethod(database)
+					DispatchQueue.main.async {
+						cont.resume(returning: articles)
+					}
+				case .failure(let databaseError):
+					DispatchQueue.main.async {
+						cont.resume(throwing: databaseError)
+					}
 				}
 			}
 		}
